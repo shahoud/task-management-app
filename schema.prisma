@@ -1,0 +1,245 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")  // Make sure this is set in your .env file
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+
+
+//User Models
+model User {
+  id                  String                  @id @default(cuid())
+  email               String                  @unique
+  password            String?                 // Optional, since users may log in via Google
+  firstName           String?
+  lastName            String?
+  profilePicture      String?
+  isActive            Boolean                 @default(true)
+  emailVerified       Boolean                 @default(false)
+  resetPasswordToken  String?
+  resetPasswordExpires DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  lastLogin           DateTime?
+  lastLoginIp         String?
+  timezone            String?
+  phoneNumber         String?
+  notificationSettings Json
+  preferences         Json
+  bio                 String?
+  status              UserStatus              @default(ACTIVE)
+  dateOfBirth         DateTime?
+  twoFactorEnabled    Boolean                 @default(false)
+  twoFactorSecret     String?
+  tags                Json                    // Storing tags as a JSON array
+  location            String?
+  profileCompleted    Boolean                 @default(false)
+  socialAccounts      Json                    // Storing social account details
+  invitedBy           String?
+
+  // New fields added for relations
+  userWorkspaceRoles  UserWorkspaceRole[]     // Relation for user roles in workspaces
+  userFolderRoles     UserFolderRole[]        // Relation for user roles in folders
+  userListRoles       UserListRole[]          // Relation for user roles in lists
+  userTaskRoles       UserTaskRole[]          // Relation for user roles in tasks
+
+     // Updated fields reflecting relations
+  tasksCreated        Task[]      @relation("TaskCreator") // Tasks created by this user
+  tasksAssigned       Task[]      @relation("UserTaskRoles") // Tasks assigned to this user
+   // New relation field for task logs
+  taskLogs           TaskLog[]   // Relation to task logs created by the user
+
+}
+
+
+
+
+//Enums
+enum UserStatus {
+  ACTIVE
+  AWAY
+  BUSY
+  OFFLINE
+}
+
+// Task status options
+enum TaskStatus {
+  TODO        // Task has not been started yet
+  IN_PROGRESS // Task is currently in progress
+  DONE        // Task has been completed
+  BLOCKED     // Task is blocked and cannot proceed
+  CANCELED    // Task has been canceled
+}
+
+// Task priority levels
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+
+//Authorization 
+model Role {
+  id                String                @id @default(cuid())
+  name              String                @unique // Name of the role (e.g., Full, Edit, View, Comment, Admin)
+  permissions       Permission[]          @relation("RolePermissions") // Relation to permissions linked to this role
+  userWorkspaceRoles UserWorkspaceRole[]  // Relation for user workspaces linked to this role
+  userFolderRoles   UserFolderRole[]      // Relation for folder roles
+  userListRoles     UserListRole[]        // Relation for list roles
+  userTaskRoles     UserTaskRole[]        // Relation for task roles
+}
+
+model Permission {
+  id          String   @id @default(cuid()) // Unique identifier for the permission
+  name        String   @unique // Name of the permission (e.g., 'canEdit', 'canView', 'canInvite')
+  roles       Role[]   @relation("RolePermissions") // Relation to roles that have this permission
+}
+
+model UserWorkspaceRole {
+  id           String     @id @default(cuid())                     // Unique identifier for the role
+  user         User       @relation(fields: [userId], references: [id])  // The associated user
+  userId       String                                                // Foreign key for user
+  workspace    Workspace  @relation(fields: [workspaceId], references: [id]) // The associated workspace
+  workspaceId  String                                                // Foreign key for workspace
+  role         Role       @relation(fields: [roleId], references: [id])  // The assigned role
+  roleId       String                                                // Foreign key for role
+  createdAt    DateTime   @default(now())                            // Timestamp for creation
+  updatedAt    DateTime   @updatedAt                                 // Timestamp for last update
+}
+
+model UserFolderRole {
+  id        String   @id @default(cuid())                      // Unique identifier for the role
+  user      User     @relation(fields: [userId], references: [id])  // The associated user
+  userId    String                                             // Foreign key for the user
+  folder    Folder   @relation(fields: [folderId], references: [id])  // The associated folder
+  folderId  String                                             // Foreign key for the folder
+  role      Role     @relation(fields: [roleId], references: [id])  // The assigned role
+  roleId    String                                             // Foreign key for the role
+  createdAt DateTime @default(now())                           // Timestamp for creation
+  updatedAt DateTime @updatedAt                                // Timestamp for the last update
+}
+
+model UserListRole {
+  id        String   @id @default(cuid())                      // Unique identifier for the role
+  user      User     @relation(fields: [userId], references: [id])  // The associated user
+  userId    String                                             // Foreign key for the user
+  list      List     @relation(fields: [listId], references: [id])  // The associated list
+  listId    String                                             // Foreign key for the list
+  role      Role     @relation(fields: [roleId], references: [id])  // The assigned role
+  roleId    String                                             // Foreign key for the role
+  createdAt DateTime @default(now())                           // Timestamp for creation
+  updatedAt DateTime @updatedAt                                // Timestamp for the last update
+}
+
+model UserTaskRole {
+  id        String   @id @default(cuid())                      // Unique identifier for the role
+  user      User     @relation(fields: [userId], references: [id])  // The associated user
+  userId    String                                             // Foreign key for the user
+  task      Task     @relation(fields: [taskId], references: [id])  // The associated task
+  taskId    String                                             // Foreign key for the task
+  role      Role     @relation(fields: [roleId], references: [id])  // The assigned role
+  roleId    String                                             // Foreign key for the role
+  createdAt DateTime @default(now())                           // Timestamp for creation
+  updatedAt DateTime @updatedAt                                // Timestamp for the last update
+}
+
+
+
+
+
+//Resources 
+
+model Workspace {
+  id               String         @id @default(cuid()) // Unique identifier for the workspace
+  name             String         // Name of the workspace
+  description      String?        // Optional description of the workspace
+  createdAt        DateTime       @default(now()) // Timestamp for when the workspace was created
+  updatedAt        DateTime       @updatedAt // Timestamp for the last update
+  userWorkspaceRoles UserWorkspaceRole[] // Relation for user roles in this workspace
+  folders          Folder[]   // Relation for folders within this workspace
+}
+
+model Folder {
+  id          String        @id @default(cuid()) // Unique identifier for the folder
+  name        String        // Name of the folder
+  description String?       // Optional description of the folder
+  createdAt   DateTime      @default(now()) // Timestamp for when the folder was created
+  updatedAt   DateTime      @updatedAt // Timestamp for the last update
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id]) // The associated workspace
+  workspaceId String         // Foreign key for the workspace
+  userFolderRoles UserFolderRole[] // Relation for user folder roles linked to this folder
+  lists       List[]        // Relation to lists contained in this folder
+}
+
+
+model List {
+  id          String        @id @default(cuid()) // Unique identifier for the list
+  name        String        // Name of the list
+  description String?       // Optional description of the list
+  createdAt   DateTime      @default(now()) // Timestamp for when the list was created
+  updatedAt   DateTime      @updatedAt // Timestamp for the last update
+  folder      Folder        @relation(fields: [folderId], references: [id]) // The associated folder
+  folderId    String        // Foreign key for the folder
+  userListRoles UserListRole[] // Relation for user list roles linked to this list
+  tasks       Task[]        // Relation to tasks contained in this list
+}
+
+model Task {
+  id            String           @id @default(cuid()) // Unique identifier for the task
+  title         String                                   // Title of the task
+  description   String?                                  // Optional description of the task
+  status        TaskStatus      @default(TODO)         // Current status of the task
+  priority      TaskPriority    @default(MEDIUM)       // Priority of the task
+  dueDate       DateTime?                              // Optional due date for the task
+  createdAt     DateTime         @default(now())       // Timestamp for when the task was created
+  updatedAt     DateTime         @updatedAt            // Timestamp for the last update
+  list          List             @relation(fields: [listId], references: [id]) // Associated list
+  listId        String                                   // Foreign key for the associated list
+  creator       User             @relation(name: "TaskCreator", fields: [creatorId], references: [id]) // Task creator
+  creatorId     String                                   // Foreign key for the creator user
+  assignees     User[]          @relation("UserTaskRoles") // Users assigned to this task
+  userTaskRoles UserTaskRole[]                               // User roles linked to this task (permissions)
+  attachments   Attachment[]                                 // Relation to multiple attachments linked to this task
+  taskLogs      TaskLog[]                                    // Relation to multiple log entries for the task
+}
+
+
+
+
+model Attachment {
+  id        String   @id @default(cuid())      // Unique identifier for the attachment
+  fileName  String                              // Name of the file
+  fileUrl   String                              // URL to access the uploaded file
+  fileType  String                              // Type of the file (e.g., 'pdf', 'jpg', 'docx')
+  uploadedAt DateTime @default(now())           // Timestamp for when the file was uploaded
+  task      Task     @relation(fields: [taskId], references: [id]) // The associated task
+  taskId    String                              // Foreign key for the task
+}
+
+model TaskLog {
+  id          String   @id @default(cuid())  // Unique identifier for the log entry
+  action      String                            // Description of the action (e.g., 'Status changed', 'Field added')
+  changedBy   User     @relation(fields: [userId], references: [id]) // The user who made the change
+  userId      String                            // Foreign key for the user
+  task        Task     @relation(fields: [taskId], references: [id]) // The associated task
+  taskId      String                            // Foreign key for the task
+  createdAt   DateTime @default(now())           // Timestamp for when the action was logged
+}
+
+
+
+
+
+
+
+
+
+
+
+
